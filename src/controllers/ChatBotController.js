@@ -61,9 +61,38 @@ const processMsg = (req, res) => {
 }
 
 const handleMessage = (sender_psid, received_message) => {
+    const entitiesArr = [ "greetings", "thanks", "bye" ];
     let response;
     let msg = received_message.text;
     let answer;
+    let entityChosen = "";
+
+    entitiesArr.forEach((name) => {
+        console.log(name);
+        console.log(received_message.nlp);
+        // let entity = firstEntity(received_message.nlp, name);
+        /*if (entity && entity.confidence > 0.8) {
+            entityChosen = name;
+        }*/
+    });
+
+    /*if(entityChosen === ""){
+        //default
+        callSendAPI(sender_psid,`The bot is needed more training, try to say "thanks a lot" or "hi" to the bot` );
+    }else{
+        if(entityChosen === "greetings"){
+            //send greetings message
+            callSendAPI(sender_psid,'Hi there! This bot is created by Hary Pham. Watch more videos on HaryPhamDev Channel!');
+        }
+        if(entityChosen === "thanks"){
+            //send thanks message
+            callSendAPI(sender_psid,`You 're welcome!`);
+        }
+        if(entityChosen === "bye"){
+            //send bye message
+            callSendAPI(sender_psid,'bye-bye!');
+        }
+    }*/
 
     if (msg) {
         msg = msg.toLowerCase();
@@ -125,7 +154,7 @@ const reply = (sender_psid, response) => {
             console.log('message sent!')
         })
         .catch(function (error) {
-            console.error("Unable to send message:" + err);
+            console.error("Unable to send message:" + error);
         });
 }
 
