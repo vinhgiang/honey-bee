@@ -60,6 +60,10 @@ const processMsg = (req, res) => {
     }
 }
 
+function firstEntity(nlp, name) {
+    return nlp && nlp.entities && nlp.entities[name] && nlp.entities[name][0];
+}
+
 const handleMessage = (sender_psid, received_message) => {
     const entitiesArr = [ "greetings", "thanks", "bye" ];
     let response;
@@ -68,12 +72,11 @@ const handleMessage = (sender_psid, received_message) => {
     let entityChosen = "";
 
     entitiesArr.forEach((name) => {
-        console.log(name);
-        console.log(received_message.nlp);
-        // let entity = firstEntity(received_message.nlp, name);
-        /*if (entity && entity.confidence > 0.8) {
+        let entity = firstEntity(received_message.nlp, name);
+        if (entity && entity.confidence > 0.8) {
             entityChosen = name;
-        }*/
+        }
+        console.log(entity, entity.confidence, entityChosen);
     });
 
     /*if(entityChosen === ""){
