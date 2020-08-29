@@ -60,8 +60,8 @@ const processMsg = (req, res) => {
     }
 }
 
-function firstEntity(nlp, name) {
-    return nlp && nlp.entities && nlp.entities[name] && nlp.entities[name][0];
+function firstTrait(nlp, name) {
+    return nlp && nlp.entities && nlp.traits[name] && nlp.traits[name][0];
 }
 
 const handleMessage = (sender_psid, received_message) => {
@@ -71,13 +71,14 @@ const handleMessage = (sender_psid, received_message) => {
     let answer;
     let entityChosen = "";
 
-    entitiesArr.forEach((name) => {
-        let entity = firstEntity(received_message.nlp, name);
-        if (entity && entity.confidence > 0.8) {
-            entityChosen = name;
-        }
-        console.log(entity, entity.confidence, entityChosen);
-    });
+    // check greeting is here and is confident
+    const greeting = firstTrait(received_message.nlp, 'wit$greetings');
+    if (greeting && greeting.confidence > 0.8) {
+        console.log(greeting, greeting.confidence);
+        console.log('Hi there!');
+    } else {
+        // default logic
+    }
 
     /*if(entityChosen === ""){
         //default
