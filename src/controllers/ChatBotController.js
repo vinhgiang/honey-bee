@@ -1,42 +1,6 @@
 const axios = require('axios');
-const querystring = require('querystring');
 
-const postWebhook = (req, res) => {
-    let body = req.body;
-
-    // Checks this is an event from a page subscription
-    if (body.object === 'page') {
-
-        // Iterates over each entry - there may be multiple if batched
-        body.entry.forEach(function(entry) {
-
-            // Gets the message. entry.messaging is an array, but
-            // will only ever contain one message, so we get index 0
-            let webhook_event = entry.messaging[0];
-            console.log(webhook_event);
-
-            // Get the sender PSID
-            let sender_psid = webhook_event.sender.id;
-            console.log('Sender PSID: ' + sender_psid);
-
-            // Check if the event is a message or postback and
-            // pass the event to the appropriate handler function
-            if (webhook_event.message) {
-                handleMessage(sender_psid, webhook_event.message);
-            } else if (webhook_event.postback) {
-                handlePostback(sender_psid, webhook_event.postback);
-            }
-        });
-
-        // Returns a '200 OK' response to all requests
-        res.status(200).send('EVENT_RECEIVED');
-    } else {
-        // Returns a '404 Not Found' if event is not from a page subscription
-        res.sendStatus(404);
-    }
-}
-
-const getWebhook = (req, res) => {
+const verifyWebhook = (req, res) => {
     // Your verify token. Should be a random string.
     let VERIFY_TOKEN = process.env.WEBHOOK_VERIFY_TOKEN
 
@@ -62,15 +26,55 @@ const getWebhook = (req, res) => {
     }
 }
 
+const processMsg = (req, res) => {
+    let body = req.body;
+
+    // Checks this is an event from a page subscription
+    if (body.object === 'page') {
+
+        // Iterates over each entry - there may be multiple if batched
+        body.entry.forEach(function(entry) {
+
+            // Gets the message. entry.messaging is an array, but
+            // will only ever contain one message, so we get index 0
+            let webhook_event = entry.messaging[0];
+
+            // Get the sender PSID
+            let sender_psid = webhook_event.sender.id;
+
+            // Check if the event is a message or postback and
+            // pass the event to the appropriate handler function
+            if (webhook_event.message) {
+                console.log('Sender PSID: ' + sender_psid, 'msg', webhook_event.message);
+                handleMessage(sender_psid, webhook_event.message);
+            } else if (webhook_event.postback) {
+                handlePostback(sender_psid, webhook_event.postback);
+            }
+        });
+
+        // Returns a '200 OK' response to all requests
+        res.status(200).send('EVENT_RECEIVED');
+    } else {
+        // Returns a '404 Not Found' if event is not from a page subscription
+        res.sendStatus(404);
+    }
+}
+
 const handleMessage = (sender_psid, received_message) => {
     let response;
+    let msg = received_message.text;
+    let answer;
 
-    // Check if the message contains text
-    if (received_message.text) {
+    if (msg) {
+        msg = msg.toLowerCase();
+        if (msg === 'hi honey' || msg === 'hey honey') {
+            answer = 'Hi my Queen! How may I help?';
+        } else {
+            answer = `Sorry, I don't understand. I am still learning!`;
+        }
 
-        // Create the payload for a basic text message
         response = {
-            "text": `You sent the message: "${received_message.text}". Now send me an image!`
+            "text": answer
         }
     } else if (received_message.attachments) {
 
@@ -104,11 +108,10 @@ const handleMessage = (sender_psid, received_message) => {
     }
 
     // Sends the response message
-    callSendAPI(sender_psid, response);
+    reply(sender_psid, response);
 };
 
-const callSendAPI = (sender_psid, response) => {
-    // Construct the message body
+const reply = (sender_psid, response) => {
     let request_body = {
         "recipient": {
             "id": sender_psid
@@ -117,29 +120,13 @@ const callSendAPI = (sender_psid, response) => {
     }
 
     // Send the HTTP request to the Messenger Platform
-    /*request({
-        "uri": "https://graph.facebook.com/v2.6/me/messages",
-        "qs": { "access_token": process.env.FACEBOOK_PAGE_TOKEN },
-        "method": "POST",
-        "json": request_body
-    }, (err, res, body) => {
-        if (!err) {
+    axios.post('https://graph.facebook.com/v2.6/me/messages', request_body, { params: { "access_token": process.env.FACEBOOK_PAGE_TOKEN } })
+        .then(function (response) {
             console.log('message sent!')
-        } else {
+        })
+        .catch(function (error) {
             console.error("Unable to send message:" + err);
-        }
-    });*/
-
-    axios.post(
-        'https://graph.facebook.com/v2.6/me/messages',
-        request_body,
-        { params: { "access_token": process.env.FACEBOOK_PAGE_TOKEN } }
-    ).then(function (response) {
-        console.log(response);
-    })
-    .catch(function (error) {
-        console.log(error);
-    });
+        });
 }
 
 // Handles messaging_postbacks events
@@ -160,6 +147,6 @@ const handlePostback = (sender_psid, received_postback) => {
 }
 
 module.exports = {
-    postWebhook,
-    getWebhook
+    processMsg,
+    verifyWebhook
 }
