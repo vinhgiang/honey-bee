@@ -1,4 +1,6 @@
 const axios = require('axios');
+const helper = require('../classes/helper');
+let jobs = [];
 
 const verifyWebhook = (req, res) => {
     // Your verify token. Should be a random string.
@@ -24,6 +26,7 @@ const verifyWebhook = (req, res) => {
             res.sendStatus(403);
         }
     }
+    res.sendStatus(400);
 }
 
 const processMsg = (req, res) => {
@@ -64,80 +67,84 @@ function firstTrait(nlp, name) {
     return nlp && nlp.entities && nlp.traits[name] && nlp.traits[name][0];
 }
 
-const handleMessage = (sender_psid, received_message) => {
-    const entitiesArr = [ "greetings", "thanks", "bye" ];
+function firstEntity(nlp, name) {
+    return nlp && nlp.entities && nlp.entities[name] && nlp.entities[name][0];
+}
+
+const handleMessage = async (sender_psid, received_message) => {
     let response;
     let msg = received_message.text;
     let answer;
-    let entityChosen = "";
 
-    // check greeting is here and is confident
-    const greeting = firstTrait(received_message.nlp, 'wit$greetings');
-    if (greeting && greeting.confidence > 0.8) {
-        console.log(greeting, greeting.confidence);
-        console.log('Hi there!');
+    const urlEnitity = firstEntity(received_message.nlp, 'wit$url:url');
+    if (urlEnitity && urlEnitity.confidence >= 0.8) {
+        const url = urlEnitity.value;
+        
+        answer = `Downloading: ${url}`;
+
+        helper.pinterestParser(url)
+            .then(data => {
+                jobs.push([sender_psid, data]);
+                response = {
+                    "attachment": {
+                        "type": "template",
+                        "payload": {
+                            "template_type": "generic",
+                            "elements": [{
+                                "title": "Is this the correct resouce?",
+                                "subtitle": "Tap a button to answer.",
+                                "image_url": data.images['736x'].url,
+                                "buttons": [
+                                    {
+                                        "type": "postback",
+                                        "title": "Yes!",
+                                        "payload": "yes",
+                                    },
+                                    {
+                                        "type": "postback",
+                                        "title": "No!",
+                                        "payload": "no",
+                                    }
+                                ],
+                            }]
+                        }
+                    }
+                }
+            })
+            .catch(err => {
+                console.log(err);
+                response = { "text": "Oops! Sorry, something is wrong with this URL. Please contact the Woker Bee at <giangcamvinh@gmail.com>." }
+            })
+            .finally(() => {
+                reply(sender_psid, response);
+            });
     } else {
-        // default logic
-    }
-
-    /*if(entityChosen === ""){
-        //default
-        callSendAPI(sender_psid,`The bot is needed more training, try to say "thanks a lot" or "hi" to the bot` );
-    }else{
-        if(entityChosen === "greetings"){
-            //send greetings message
-            callSendAPI(sender_psid,'Hi there! This bot is created by Hary Pham. Watch more videos on HaryPhamDev Channel!');
-        }
-        if(entityChosen === "thanks"){
-            //send thanks message
-            callSendAPI(sender_psid,`You 're welcome!`);
-        }
-        if(entityChosen === "bye"){
-            //send bye message
-            callSendAPI(sender_psid,'bye-bye!');
-        }
-    }*/
-
-    if (msg) {
-        msg = msg.toLowerCase();
-        if (msg === 'hi honey' || msg === 'hey honey') {
+        const byeTrait = firstTrait(received_message.nlp, 'wit$bye');
+        const thanksTrait = firstTrait(received_message.nlp, 'wit$thanks');
+        const greetingTrait = firstTrait(received_message.nlp, 'wit$greetings');
+        if (byeTrait && byeTrait.confidence >= 0.8) {
+            answer = 'Bye bye my Queen!';
+        } else if (thanksTrait && thanksTrait.confidence >= 0.8) {
+            answer = 'You are very welcome!';
+        } else if (greetingTrait && greetingTrait.confidence >= 0.8) {
             answer = 'Hi my Queen! How may I help?';
         } else {
-            answer = `Sorry, I don't understand. I am still learning!`;
+            answer = 'You can always ask "What can you do?"';
         }
+    }
 
+    if (msg) {
         response = {
             "text": answer
+        }
+        if (msg === 'yes') {
+            response = { "text": parsedData.images['736x'].url }
         }
     } else if (received_message.attachments) {
 
         // Get the URL of the message attachment
         let attachment_url = received_message.attachments[0].payload.url;
-        response = {
-            "attachment": {
-                "type": "template",
-                "payload": {
-                    "template_type": "generic",
-                    "elements": [{
-                        "title": "Is this the right picture?",
-                        "subtitle": "Tap a button to answer.",
-                        "image_url": attachment_url,
-                        "buttons": [
-                            {
-                                "type": "postback",
-                                "title": "Yes!",
-                                "payload": "yes",
-                            },
-                            {
-                                "type": "postback",
-                                "title": "No!",
-                                "payload": "no",
-                            }
-                        ],
-                    }]
-                }
-            }
-        }
+        
     }
 
     // Sends the response message
@@ -163,20 +170,44 @@ const reply = (sender_psid, response) => {
 }
 
 // Handles messaging_postbacks events
+// ONLY be triggered when users click on the provided options
+// WILL NOT be triggered even that users type exact the same answer as provided option
 const handlePostback = (sender_psid, received_postback) => {
     let response;
 
     // Get the payload for the postback
     let payload = received_postback.payload;
 
+    let job = jobs.filter(job => job[0] === sender_psid)[0];
+
     // Set the response based on the postback payload
-    if (payload === 'yes') {
-        response = { "text": "Thanks!" }
+    if (payload === 'yes' && job) {
+        
+        let file = job[1].isVideo ? job[1].videos.video_list.V_720P.url : job[1].images.orig.url;
+        
+        // don't need to download since facebook can handle URL attachment directly
+        // await helper.downloadFileViaURL(file, "./src/public/");    
+        
+        reply(sender_psid, {"text": "Here you are :3"});
+
+        response = {
+            "attachment": {
+                "type": job[1].isVideo ? "video" : "image", 
+                "payload": {
+                    "url": file, 
+                    "is_reusable": true
+                }
+            }
+        };
     } else if (payload === 'no') {
-        response = { "text": "Oops, try sending another image." }
+        response = { "text": "Oops, try sending another URL." }
     }
+
+    // remove the job from list
+    jobs.splice(jobs.indexOf(job), 1);
+
     // Send the message to acknowledge the postback
-    callSendAPI(sender_psid, response);
+    reply(sender_psid, response);
 }
 
 module.exports = {
