@@ -115,3 +115,4 @@ dist
 .yarn/unplugged
 .yarn/build-state.yml
 .pnp.*
+env_var.sh
