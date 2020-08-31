@@ -77,7 +77,7 @@ const handleMessage = async (sender_psid, received_message) => {
     let answer;
 
     const urlEnitity = firstEntity(received_message.nlp, 'wit$url:url');
-    if (urlEnitity && urlEnitity.confidence >= 0.8) {
+    if (urlEnitity && urlEnitity.confidence >= 0.6) {
         const url = urlEnitity.value;
         
         answer = `Downloading: ${url}`;
@@ -188,7 +188,7 @@ const handlePostback = (sender_psid, received_postback) => {
         // don't need to download since facebook can handle URL attachment directly
         // await helper.downloadFileViaURL(file, "./src/public/");    
         
-        reply(sender_psid, {"text": "Here you are :3"});
+        reply(sender_psid, {"text": "Just a few more seconds 😝"});
 
         response = {
             "attachment": {

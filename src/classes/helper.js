@@ -2,11 +2,14 @@ const axios = require('axios');
 const htmlparser2 = require('htmlparser2');
 const fs = require('fs');
 const path = require('path');
+const appConfigs = require('../config/config.js');
 
 const pinterestParser = async url => {
     let isDone = false;
     let isCorrectScript = false;
     let data, images, videos;
+
+    url = await pinterestUrlSanitizer(url);
 
     const parser = new htmlparser2.Parser(
     {
@@ -34,16 +37,16 @@ const pinterestParser = async url => {
 
     try {
         const response = await axios.get(url);
-        
+
         parser.write(response.data);
         parser.end();
-        
+
         images = data.resourceResponses[0].response.data.images;
         videos = data.resourceResponses[0].response.data.videos;
     }
     catch(err) {
         return Promise.reject(`Could not fetch page. Error: ${err}`)
-    };
+    }
 
     return { images, videos, "isVideo": videos !== null}
 }
@@ -76,7 +79,64 @@ const downloadFileViaURL = async (url, newPath, name) => {
   });
 }
 
+const isValidUrl = url => {
+    const pattern = new RegExp('^(https?:\\/\\/)?'+ // protocol
+        '((([a-z\\d]([a-z\\d-]*[a-z\\d])*)\\.)+[a-z]{2,}|'+ // domain name
+        '((\\d{1,3}\\.){3}\\d{1,3}))'+ // OR ip (v4) address
+        '(\\:\\d+)?(\\/[-a-z\\d%_.~+]*)*'+ // port and path
+        '(\\?[;&a-z\\d%_.~+=-]*)?'+ // query string
+        '(\\#[-a-z\\d_]*)?$','i'); // fragment locator
+    return !!pattern.test(url);
+}
+
+const isSupportedUrl = url => {
+    if (!isValidUrl(url)) {
+        return false;
+    }
+    const supportedDomains = appConfigs.SUPPORTED_DOMAINS;
+    url = typeof url === "string" ? new URL(url) : url;
+
+    return supportedDomains.some(domain => domain === url.hostname || `www.${domain}` === url.hostname);
+}
+
+const isShortenDomain = domain => {
+    return appConfigs.SHORTEN_DOMAINS.some(d => d === domain || `www.${d}` === domain);
+}
+
+const shortenToFullUrl = async url => {
+    try {
+        // deal with shortened URL. Because maxRedirects: 0 will treat every redirection as error
+        // but the error will contain the destination url
+        await axios({
+            method: "get",
+            url: url,
+            maxRedirects: 0
+        });
+    }
+    catch(err) {
+        if (err.response && Math.trunc(err.response.status / 100) === 3) {
+            return Promise.resolve(err.response.headers.location);
+        }
+        return Promise.reject(`Could not fetch page. Error: ${err}`)
+    }
+};
+
+const pinterestUrlSanitizer = async url => {
+    url = new URL(url);
+
+    if (!isSupportedUrl(url)) {
+        return Promise.reject(`${url.hostname} is not supported yet.`);
+    }
+
+    if (isShortenDomain(url.hostname)) {
+        url = new URL(await shortenToFullUrl(url.href));
+    }
+    return /(https:\/\/(www.)*\w+.com\/pin\/\d+\/*)/g.exec(url.href)[0];
+}
+
 module.exports = {
     pinterestParser,
-    downloadFileViaURL
+    downloadFileViaURL,
+    pinterestUrlSanitizer,
+    isSupportedUrl
 }
