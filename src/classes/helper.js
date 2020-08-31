@@ -103,6 +103,10 @@ const isShortenDomain = domain => {
     return appConfigs.SHORTEN_DOMAINS.some(d => d === domain || `www.${d}` === domain);
 }
 
+const isFacebookRouter = domain => {
+    return appConfigs.FACEBOOK_LINK_ROUTER.some(d => d === domain);
+}
+
 const shortenToFullUrl = async url => {
     try {
         // deal with shortened URL. Because maxRedirects: 0 will treat every redirection as error
@@ -122,6 +126,7 @@ const shortenToFullUrl = async url => {
 };
 
 const pinterestUrlSanitizer = async url => {
+    url = url.replace(/\/$/, "");
     url = new URL(url);
 
     if (!isSupportedUrl(url)) {
@@ -138,5 +143,6 @@ module.exports = {
     pinterestParser,
     downloadFileViaURL,
     pinterestUrlSanitizer,
-    isSupportedUrl
+    isSupportedUrl,
+    isFacebookRouter
 }

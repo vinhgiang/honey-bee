@@ -71,84 +71,88 @@ function firstEntity(nlp, name) {
     return nlp && nlp.entities && nlp.entities[name] && nlp.entities[name][0];
 }
 
+const confirmResource = data => {
+    return {
+        "attachment": {
+            "type": "template",
+            "payload": {
+                "template_type": "generic",
+                "elements": [{
+                    "title": "Is this the correct resouce?",
+                    "subtitle": "Tap a button to answer.",
+                    "image_url": data.images['736x'].url,
+                    "buttons": [
+                        {
+                            "type": "postback",
+                            "title": "Yes!",
+                            "payload": "yes",
+                        },
+                        {
+                            "type": "postback",
+                            "title": "No!",
+                            "payload": "no",
+                        }
+                    ],
+                }]
+            }
+        }
+    }
+}
+
 const handleMessage = async (sender_psid, received_message) => {
     let response;
     let msg = received_message.text;
-    let answer;
+    let answer, url;
 
-    const urlEnitity = firstEntity(received_message.nlp, 'wit$url:url');
-    if (urlEnitity && urlEnitity.confidence >= 0.6) {
-        const url = urlEnitity.value;
-        
-        answer = `Downloading: ${url}`;
+    if (msg) {
+        const urlEntity = firstEntity(received_message.nlp, 'wit$url:url');
+        if (urlEntity && urlEntity.confidence >= 0.6) {
+            url = urlEntity.value;
+            answer = `Downloading: ${url}`;
 
+        } else {
+            const byeTrait = firstTrait(received_message.nlp, 'wit$bye');
+            const thanksTrait = firstTrait(received_message.nlp, 'wit$thanks');
+            const greetingTrait = firstTrait(received_message.nlp, 'wit$greetings');
+            if (byeTrait && byeTrait.confidence >= 0.8) {
+                answer = 'Bye bye my Queen!';
+            } else if (thanksTrait && thanksTrait.confidence >= 0.8) {
+                answer = 'You are very welcome!';
+            } else if (greetingTrait && greetingTrait.confidence >= 0.8) {
+                answer = 'Hi my Queen! How may I help?';
+            } else {
+                answer = 'You can always ask "What can you do?"';
+            }
+        }
+    } else if (received_message.attachments) {
+        // Get the URL of the message attachment
+        let attachment_url = received_message.attachments[0].payload.url;
+        if (received_message.attachments[0].type === 'fallback') {
+            url = new URL(attachment_url);
+            if (helper.isFacebookRouter(url.hostname)) {
+                url = url.searchParams.get('u');
+                answer = `Downloading: ${url}`;
+            }
+        }
+    }
+
+    if (url) {
         helper.pinterestParser(url)
             .then(data => {
                 jobs.push([sender_psid, data]);
-                response = {
-                    "attachment": {
-                        "type": "template",
-                        "payload": {
-                            "template_type": "generic",
-                            "elements": [{
-                                "title": "Is this the correct resouce?",
-                                "subtitle": "Tap a button to answer.",
-                                "image_url": data.images['736x'].url,
-                                "buttons": [
-                                    {
-                                        "type": "postback",
-                                        "title": "Yes!",
-                                        "payload": "yes",
-                                    },
-                                    {
-                                        "type": "postback",
-                                        "title": "No!",
-                                        "payload": "no",
-                                    }
-                                ],
-                            }]
-                        }
-                    }
-                }
+                response = confirmResource(data);
             })
             .catch(err => {
                 console.log(err);
-                response = { "text": "Oops! Sorry, something is wrong with this URL. Please contact the Woker Bee at <giangcamvinh@gmail.com>." }
+                response = { "text": "Oops! Sorry, something is wrong with this URL. Please contact the Worker Bee at <giangcamvinh@gmail.com>." }
             })
             .finally(() => {
                 reply(sender_psid, response);
             });
-    } else {
-        const byeTrait = firstTrait(received_message.nlp, 'wit$bye');
-        const thanksTrait = firstTrait(received_message.nlp, 'wit$thanks');
-        const greetingTrait = firstTrait(received_message.nlp, 'wit$greetings');
-        if (byeTrait && byeTrait.confidence >= 0.8) {
-            answer = 'Bye bye my Queen!';
-        } else if (thanksTrait && thanksTrait.confidence >= 0.8) {
-            answer = 'You are very welcome!';
-        } else if (greetingTrait && greetingTrait.confidence >= 0.8) {
-            answer = 'Hi my Queen! How may I help?';
-        } else {
-            answer = 'You can always ask "What can you do?"';
-        }
-    }
-
-    if (msg) {
-        response = {
-            "text": answer
-        }
-        if (msg === 'yes') {
-            response = { "text": parsedData.images['736x'].url }
-        }
-    } else if (received_message.attachments) {
-
-        // Get the URL of the message attachment
-        let attachment_url = received_message.attachments[0].payload.url;
-        
     }
 
     // Sends the response message
-    reply(sender_psid, response);
+    reply(sender_psid, { "text": answer });
 };
 
 const reply = (sender_psid, response) => {
